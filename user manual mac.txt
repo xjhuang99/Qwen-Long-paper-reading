@@ -1,0 +1,95 @@
+
+Here's the macOS manual converted to plain text format with preserved structure:
+
+
+# User Manual: Install Python, IDE, and Run `main.py` on macOS
+
+## 1. Install Python
+### 1.1 Download Python
+- Go to Python official website: https://www.python.org/downloads/
+- Click "Download Python 3.12.1" (verify latest version)
+- Select "macOS 64-bit installer" (.pkg file)
+
+### 1.2 Run the Installer
+- Double-click downloaded .pkg file
+- Follow installation wizard (use default settings)
+- Note: macOS doesn't auto-add Python to PATH - use Homebrew instead
+
+### 1.3 Alternative: Install via Homebrew
+1. Install Homebrew first:
+   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+2. Install Python:
+   brew install python
+
+### 1.4 Verify Installation
+Open Terminal (Cmd + Space → type "Terminal") and run:
+python3 --version  # Should show Python 3.12.1
+
+
+## 2. Install an IDE (PyCharm Example)
+### 2.1 Download PyCharm
+- Visit https://www.jetbrains.com/pycharm/download/
+- Click "Download" for macOS (Community Edition)
+
+### 2.2 Install PyCharm
+- Double-click .dmg file
+- Drag PyCharm icon to Applications folder
+
+### 2.3 Launch PyCharm
+- Open from Applications
+- Skip welcome tutorial
+
+
+## 3. Set Up a Virtual Environment
+### 3.1 Create Project Folder
+- Create directory (e.g., ~/MyProject)
+
+### 3.2 Open Terminal in PyCharm
+- View → Tool Windows → Terminal
+
+### 3.3 Create & Activate Environment
+python3 -m venv myenv
+source myenv/bin/activate  # Activates environment (shows (myenv))
+
+
+## 4. Install Dependencies
+### 4.1 Place Files
+- Put requirements.txt and main.py in project folder
+
+### 4.2 Install Packages
+In activated environment:
+pip install -r requirements.txt
+
+
+## 5. Run `main.py`
+### 5.1 Configure `main.py`
+Update CONFIG section with macOS paths:
+CONFIG = {
+    "api_key": "YOUR_OPENAI_API_KEY",
+    "pdf_folder": "/Users/your_username/pdfs",
+    "output_file": "research_summary.xlsx",
+    "user_prompt_path": "/Users/your_username/user_prompt.txt"
+}
+
+### 5.2 Run Script
+- Right-click in editor → "Run 'main'"
+- Or click green play button
+
+### 5.3 Verify Output
+Check output_file location (e.g., ~/MyProject/research_summary.xlsx)
+
+
+## Troubleshooting
+- Python not found: Install via Homebrew or official installer
+- Dependency issues: Update pip first: pip install --upgrade pip
+- Path errors: Use absolute paths (e.g., /Users/...) and avoid spaces
+- PyCharm permissions: Right-click script → "Open with PyCharm"
+
+
+## macOS-Specific Notes
+- Use ~/ as shortcut for home directory
+- Show hidden files: Cmd + Shift + .
+- Advanced users: Consider pyenv for version management
+
+
+This maintains the original structure while converting Markdown formatting to plain text conventions.

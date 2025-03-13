@@ -1,0 +1,74 @@
+# User Manual: Install Python, IDE, and Run `main.py` on Windows
+
+## 1. Install Python
+### 1.1 Download Python
+- Navigate to the Python official website at https://www.python.org/downloads/.
+- As of now, you can click on "Download Python 3.12.1" (check the website for the latest available version).
+- Select the "Windows Installer (64 - bit)" option for modern Windows systems.
+
+### 1.2 Run the Installer
+- Double - click on the downloaded `.exe` file.
+- Make sure to check the box labeled "Add Python to PATH". This allows you to run Python commands from the command prompt easily.
+- Click on "Install Now". You can choose a custom installation if you have specific requirements.
+
+### 1.3 Verify Installation
+- Open the Command Prompt by pressing `Win + R`, typing `cmd`, and then hitting Enter.
+- Run the command: `python --version`.
+- You should see the installed Python version, like `Python 3.12.1` (the actual version you installed).
+
+## 2. Install an IDE (Take PyCharm as an Example)
+### 2.1 Download PyCharm
+- Go to the PyCharm Community Edition page at https://www.jetbrains.com/pycharm/download/.
+- Click on the "Download" button for Windows.
+
+### 2.2 Install PyCharm
+- Run the downloaded `.exe` file.
+- Follow the on - screen installation instructions. Using the default settings is usually a good choice for beginners.
+
+### 2.3 Launch PyCharm
+- Open PyCharm and skip the tutorial if you are prompted to go through it.
+
+## 3. Set Up a Virtual Environment
+### 3.1 Create a Project Folder
+- Create a folder on your computer to store your project. For example, you can create a folder named `C:\MyProject`. This will be the main directory for your project, and it's where you'll place your `main.py` and `requirements.txt` files.
+
+### 3.2 Open the Terminal in PyCharm
+- In PyCharm, go to "View" -> "Tool Windows" -> "Terminal". This will open a terminal window within PyCharm where you can run commands.
+
+### 3.3 Create a Virtual Environment
+- Run the command: `python -m venv myenv`. This creates a virtual environment named `myenv` in your project folder.
+- Activate the virtual environment by running: `myenv\Scripts\activate`.
+- You will notice `(myenv)` appear in the terminal prompt, indicating that the virtual environment is active.
+
+## 4. Install Dependencies
+### 4.1 Place `requirements.txt` and `main.py`
+- Put your `requirements.txt` and `main.py` files inside the project folder you created earlier (e.g., `C:\MyProject`). The `requirements.txt` file lists all the Python packages that your `main.py` script depends on.
+- In the PyCharm terminal, if it's not already in the project directory, use the `cd` command to navigate to the project folder. For example, if your project folder is `C:\MyProject`, run `cd C:\MyProject`.
+
+### 4.2 Install Packages
+- In the activated virtual environment, run: `pip install -r requirements.txt`. This command reads the `requirements.txt` file and installs all the necessary Python packages in the virtual environment.
+
+## 5. Run `main.py`
+### 5.1 Configure `main.py`
+- Open `main.py` in PyCharm. You can do this by going to "File" -> "Open" and selecting the `main.py` file in your project folder.
+- Update the `CONFIG` section as follows:
+```python
+CONFIG = {
+    "api_key": "YOUR_OPENAI_API_KEY",  # Replace with your actual API key
+    "pdf_folder": r"C:\path\to\your\pdfs",  # Folder containing your PDF files
+    "output_file": "research_summary.xlsx",  
+    "user_prompt_path": r"C:\path\to\user_prompt.txt"  # Path to the user prompt file
+}
+```
+
+### 5.2 Run the Script
+- Right - click anywhere in the `main.py` editor window and select "Run 'main'".
+- Alternatively, you can click on the green triangle (play button) next to the code in the editor.
+
+### 5.3 Verify Output
+- After the script finishes running, check the folder specified in the `output_file` parameter of the `CONFIG` dictionary for the generated Excel file. For example, if the `output_file` is set to "research_summary.xlsx", look for this file in the relevant directory.
+
+## Troubleshooting
+- **Python not found**: Reinstall Python and make sure you checked "Add Python to PATH" during installation.
+- **Dependency installation fails**: Try running `pip install --upgrade pip` to update `pip` and then reinstall the dependencies.
+- **API key errors**: Double - check your `api_key` in the `CONFIG` section of `main.py` and make sure it's correct.

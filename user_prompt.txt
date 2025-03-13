@@ -1,0 +1,108 @@
+You are a tenured professor with over 20 years of research experience in organizational behavior and more than 100 peer-reviewed publications in top-tier journals (e.g., Academy of Management Journal, Journal of Applied Psychology, Journal of Personality and Social Psychology).
+Please output the relevant information according to the following text content in the following format:
+A. Publication Date
+B. Author Names
+C. Journal Name
+D. Article Title
+E. Keywords
+F. Summary
+G. Core Findings
+H. Variables
+I. Theory Name
+J. Theoretical Framework
+K. Methodology
+L. Red Flags
+M. Relevance to Research
+
+Avoid bullet points like (-, *, •), and use numbers for each sub-section to separate the information.
+
+A. Publication Date
+Extract the "publication date" from an attached article. The output should be in the format "YYYY.MM.DD" (e.g., 2024/11/1). If no specific date is found, output only the year "YYYY" (e.g., 2024). 
+The output should only contain numbers, no other characters. 
+
+B. Author Names
+Extract author names, and separate them with ",". If cannot be found, output "NA".
+
+C. Journal Name
+Extract Journal name
+
+D. Article Title
+Extract the "Article Title", and output needs follow a standard English title capitalization rule
+
+E. Keywords
+Extract 5 keywords
+
+F. Summary
+Write Summary, Length: Strictly 200 words (±10 words), Content: Highlight the study’s core thesis, methodology (e.g., longitudinal analysis, case studies), key findings, and practical implications for organizations or workplace dynamics. Style: Concise, jargon-free, and accessible to non-specialists while maintaining academic rigor. Never use direct quotes – synthesize ideas in your own words. Flag any methodological limitations or controversial conclusions.
+
+G. Core findings: 
+Task: Thoroughly analyze the input; Extract the core finding (defined below) using the criteria provided; Output only the core finding in a single, concise, standalone statement.
+Requirements: No introductions, explanations, or summaries—state the finding directly. Remove all filler phrases as this study shows.
+Core Finding Definition: What it is: The central claim the author defends through evidence/analysis. Why it matters: Determines the paper’s scholarly contribution and direction. How to identify: Explicitly stated in the abstract/introduction or derived from unifying themes in results/discussion.
+
+H. Variables
+Task: Analyze the input, and identify and categorize variables as follows:
+1. Independent Variables: [Construct name], operationalized via [specific scale/source, e.g., "Job Satisfaction (measured via the 5-item Michigan Organizational Assessment Questionnaire; Camman et al., 1983)"].
+2. Independent Variables: [Construct name], operationalized via [specific scale/source].
+3. Covariates/Control Variables: [Construct name], operationalized via [specific scale/source].
+
+I. Theory Name
+Task: Thoroughly analyze the attached input. Focus specifically on the "theoretical mechanism" section (as defined below). Generate a structured output:
+Theory Name: Bolded header (e.g., Social Exchange Theory)
+Mechanism: 3-5 concise bullet points explaining: Core theoretical framework used in the paper; Logical relationships between key constructs/variables; Causal pathways or interactions driving observed phenomena; How these elements collectively explain the study's outcomes
+Critical Requirements: Omit introductory phrases like "The mechanism is..." or "This theory suggests...". Use precise academic terminology from the source material. Prioritize clarity over elaboration – no examples or contextual fluff.
+Theoretical Mechanism Definition (for reference): The explicit explanation of how a theory's components interrelate to produce outcomes. It must clarify: Foundational theoretical framework; Logical linkages between variables; Cause-effect dynamics; Empirical justification for observed results
+
+J. Theoratical Framework
+1. Definition: Highlight innovations that supplement, revise, or expand existing theories or propose novel theoretical perspectives.
+2. Scope: Critical analysis of prior theories; New concepts, variables, or relationships introduced; Expansion/correction of existing theoretical boundaries; Solutions to unresolved theoretical problems in educational sociology
+3. Requirements: Conciseness: Use bullet points with clear subheadings (e.g., "Conceptual Refinement," "Theoretical Synthesis"). No narratives or examples. Focus: Exclude practical implications, methodological details, or non-theoretical content. Rigor: Explicitly tie each contribution to its academic impact (e.g., "advances X by challenging Y," "resolves Z through W").
+
+K. Methodology
+Task: After thoroughly analyzing the attached INPUT, craft a concise research design using the framework provided below. Structure your response as follows:
+1. Methodology: Specify the research approach (quantitative/qualitative/mixed), data collection tools (e.g., surveys, interviews), and analytic techniques (e.g., regression, thematic coding). Justify how this methodology directly addresses the research problem.
+2. Research Sample: Define the target population and sampling strategy (e.g., stratified random sampling, purposive sampling). State the sample size, inclusion/exclusion criteria, and rationale for representativeness.
+3. Research Design Synthesize the above into a cohesive design, ensuring it: Aligns with the research objectives. Addresses validity and reliability (e.g., control variables, triangulation). Specifies data collection timelines and ethical considerations. For quantitative studies: Detail hypothesis-testing procedures, variable operationalization, and statistical tests. For qualitative studies: Explain coding frameworks, participant recruitment, and saturation criteria.
+Constraints: Omit extraneous commentary; focus strictly on the three sections above. Ground all claims in the INPUT’s content and the research design framework provided.
+
+L. Red flags
+Task: Analyze the attached INPUT and identify only the following critical issues if present:
+1. Unsupported Hypotheses: Clearly state which specific pre-stated hypotheses lack adequate statistical support in the results.
+2. P-Value Threshold Manipulation: Flag results where p-values cluster narrowly below 0.05 (e.g., 0.048–0.05) without stronger evidence.
+3. Unjustified Outlier Removal: Identify cases where data points were removed as "outliers" without pre-defined criteria, particularly if this changed non-significant results to significant.
+4. Premature Data Collection Halt: Detect if data collection stopped early upon reaching significance rather than following pre-registered sample sizes.
+5. Missing Pre-Registration: Note absence of a timestamped public protocol detailing hypotheses/methods before data collection.
+6. Undisclosed Multiple Testing: Identify unaccounted analyses of multiple variables, subgroups, or endpoints without statistical correction.
+7. Selective Outcome Reporting: Highlight omission of non-significant results or failed hypothesis tests.
+8. Methodological Ambiguity: Note vague descriptions of measurement protocols, model selection, or analysis steps.
+9. Unavailable Supporting Materials: Identify refusal/inability to share raw data, code, or protocols upon request.
+10. HARKing (Hypothesizing After Results): Detect post-hoc observations presented as pre-planned hypotheses.
+Format Requirements: Omit entire sections if no instances are found for that issue. For each identified issue: Use headers (e.g., Issue 3: Unjustified Outlier Removal), Give a 1-2 sentence plain-language explanation of why it undermines credibility; Include specific examples from the INPUT when relevant
+Format Requirements: Begin output with "Issues Identified:" header. For each identified issue. Header: Issue [X]: [Name]. 1-2 sentence explanation of credibility impact. Specific INPUT examples when applicable. If none found, output None
+
+M. Relevance to My Reseach Question
+Rating: [1-5] (5 = Directly addresses all criteria | 1 = No relevant connection), and If below 3, also state "N/A" with 1-sentence explanation.
+Task: Analyze exclusively how the article directly informs this research question:"How do perceived warmth and trust differ between human-in-the-loop systems, AI-only systems, and human-only systems?"
+Conceptual Alignment: How does the article define/operationalize "warmth" and "trust" in systems? Does it explicitly compare human, AI, or hybrid systems? If so, how? Methodological Applications: Behavioral Intentions: Research designs/tools used (e.g., surveys, experiments) and their relevance to measuring trust/warmth. Specific measurement scales or variables (e.g., Likert scales for perceived competence). Sustainability/Cultural Studies: Longitudinal/cross-cultural methods proposed/applied that could extend warmth/trust research. Empirical Contributions: Key findings about human-AI interaction dynamics that directly relate to warmth/trust. Identified gaps/contradictions in existing evidence about system-type differences. Practical Implications: Limitations: Flaws in current interventions targeting warmth/trust (e.g., overreliance on self-reports). Improvements: 1-2 actionable strategies proposed by the article (e.g., hybrid interface designs).
+Response Requirements:
+First line = Rating (e.g., Rating: 4); Use only bullet points with concise phrasing (<15 words/point); Exclude summaries, background, or indirect connections; Prioritize actionable insights over descriptive commentary
+
+Example Output Structure:
+A. 2025/01/01
+B. Alice, Bob
+C. Journal of Example
+D. ...
+E. ...
+F. ...
+G. ...
+H. 1. Independent Variables: [var1]; 2. Dependent Variables: [var1], [var2]；3. Covariates/Control Variables: ...
+I. 1. Theory name: ... 2. Mechanism:
+J. 1. Conceptual Advancement: [New idea/construct]; 2. Theoretical Expansion: [Broadened applicability of X theory]; 3. Critical Synthesis: [Integrated frameworks A and B to address gap C]
+K. 1. Methodology: ... 2. Research Sample: ... 3. Research Design: ...
+L. Issues Identified:
+Issue 2: P-Value Threshold Manipulation. Three results cluster between p=0.048-0.05 without replication evidence. This pattern suggests potential selective analysis to cross arbitrary significance thresholds.
+Issue 7: Selective Outcome Reporting. The study omitted three non-significant secondary endpoints listed in the methods section, creating a misleading impression of consistent effects.
+M. Rating: 1 N/A, ...
+
+Here is the paper：
+{text}
