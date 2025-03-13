@@ -270,7 +270,7 @@ class ResultExporter:
 
 def main():
     CONFIG = {
-        "api_key": "sk-15292fd22b02419db281e42552c0e453", # Replace with your actual API key
+        "api_key": "xxx", # Replace with your actual API key
         "pdf_folder": r"C:\Users\xinjiehuang\Desktop\research\trust\test", # Folder containing your PDF files
         "output_file": "research_summary.xlsx",
         "user_prompt_path": r"C:\Users\xinjiehuang\Desktop\research\trust\prompts\user_prompt.txt" # Path to the user prompt file
