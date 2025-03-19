@@ -1,8 +1,9 @@
 import os
+import re
+import time
 from datetime import datetime
 from typing import List, Dict
 import pandas as pd
-import re
 from openai import OpenAI
 from openpyxl.styles import Font, Alignment
 from openpyxl.utils import get_column_letter
@@ -11,7 +12,7 @@ from openpyxl.cell.text import InlineFont
 from openpyxl.cell.rich_text import TextBlock, CellRichText
 from openpyxl.utils.dataframe import dataframe_to_rows
 
-# Qwen-Long model configuration
+# Configuration Constants
 MAX_INPUT_LENGTH_LONG = 10000000  # 10 million tokens
 MAX_REPLY_LENGTH = 6000
 
@@ -32,165 +33,126 @@ COLUMN_NAMES = {
 }
 
 BOLD_WORDS = [
-    "Rating"
+    "Rating for Task 1",
+    "Rating for Task 2"
 ]
 
 
 class PDFProcessor:
     @staticmethod
     def process_folder(folder_path: str) -> List[str]:
-        """
-        Process the given folder and return a list of PDF file paths within it.
-        :param folder_path: The path of the folder to process.
-        :return: A list of PDF file paths.
-        """
-        return [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith('.pdf')]
+        """Get all PDF files in folder"""
+        return [
+            os.path.join(folder_path, f)
+            for f in os.listdir(folder_path)
+            if f.lower().endswith('.pdf')
+        ]
 
 
 class QwenAPI:
-    def __init__(self, api_key: str, user_prompt_path):
-        """
-        Initialize the QwenAPI class.
-        :param api_key: The API key for accessing the service.
-        :param user_prompt_path: The path to the user prompt file.
-        """
+    def __init__(self, api_key: str, user_prompt_path: str):
         self.client = OpenAI(
             api_key=api_key,
             base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
         )
         self.user_prompt = self._read_prompt(user_prompt_path)
 
-    def _read_prompt(self, path):
-        """
-        Read the user prompt from the specified file.
-        :param path: The path to the user prompt file.
-        :return: The content of the user prompt file.
-        """
-        with open(path, 'r', encoding='utf-8') as file:
-            return file.read()
+    def _read_prompt(self, path: str) -> str:
+        """Read prompt template from file"""
+        with open(path, 'r', encoding='utf-8') as f:
+            return f.read()
 
     def upload_document(self, file_path: str) -> str:
-        """
-        Upload a document to the service.
-        :param file_path: The path of the file to upload.
-        :return: The ID of the uploaded file.
-        """
+        """Upload file to Qwen API"""
         try:
-            file = self.client.files.create(
-                file=open(file_path, "rb"),
-                purpose="file-extract"
-            )
-            return file.id
+            with open(file_path, "rb") as f:
+                response = self.client.files.create(
+                    file=f,
+                    purpose="file-extract"
+                )
+            return response.id
         except Exception as e:
-            raise RuntimeError(f"Failed to upload file: {str(e)}")
+            raise RuntimeError(f"Upload failed: {str(e)}")
 
     def get_summary(self, file_id: str) -> List[Dict]:
-        """
-        Get the summary of the document with the given file ID.
-        :param file_id: The ID of the file to get the summary for.
-        :return: A list of dictionaries containing the summary information.
-        """
-        messages = [
-            {'role': 'system', 'content': 'You are a helpful research assistant.'},
-            {'role': 'system', 'content': f'fileid://{file_id}'},
-            {'role': 'user', 'content': self.user_prompt}
-        ]
+        """Get document summary from Qwen API"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            messages = [
+                {'role': 'system', 'content': 'You are a helpful research assistant.'},
+                {'role': 'system', 'content': f'fileid://{file_id}'},
+                {'role': 'user', 'content': self.user_prompt}
+            ]
 
-        try:
-            completion = self.client.chat.completions.create(
-                model="qwen-long",
-                messages=messages,
-                stream=False
-            )
-            return [{"content": completion.choices[0].message.content}]
-        except Exception as e:
-            print(f"API request failed: {str(e)}")
-            return [{"error": f"API request failed: {str(e)}"}]
+            try:
+                response = self.client.chat.completions.create(
+                    model="qwen-long",
+                    messages=messages,
+                    stream=False
+                )
+                result = [{"content": response.choices[0].message.content}]
+                sections = ResultExporter.parse_sections(result[0]['content'])
+                if all(key in sections for key in COLUMN_NAMES):
+                    return result
+            except Exception as e:
+                print(f"API Error (Attempt {attempt + 1}): {str(e)}")
+
+            if attempt < max_retries - 1:
+                print(f"Retrying in 5 seconds... (Attempt {attempt + 2})")
+                time.sleep(5)
+
+        print("Max retries reached. Returning error response.")
+        return [{"error": "API request failed after multiple attempts"}]
 
 
 class ResultExporter:
     @staticmethod
-    def to_excel(data: List[Dict], output_path: str = "research_summary.xlsx"):
-        """
-        Export the given data to an Excel file.
-        :param data: The data to be exported.
-        :param output_path: The path of the output Excel file.
-        :return: The absolute path of the saved Excel file.
-        """
-        current_time = datetime.now().strftime("%Y%m%d%H%M%S")
-        new_file_name = f"{os.path.splitext(output_path)[0]}_{current_time}{os.path.splitext(output_path)[1]}"
+    def to_excel(data: List[Dict], output_path: str = "research_summary.xlsx") -> str:
+        """Export results to Excel with formatting"""
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        output_file = f"{os.path.splitext(output_path)[0]}_{timestamp}.xlsx"
 
+        # Prepare dataframe
         rows = []
-        for result in data:
-            file_path = result['file_path']
-            process_time = result['process_time']
-            for response in result['raw_responses']:
-                row = {'File Path': file_path, 'Process Time': process_time}
+        for entry in data:
+            for response in entry['raw_responses']:
+                row = {
+                    'File Path': entry['file_path'],
+                    'Process Time': entry['process_time']
+                }
                 if 'error' in response:
                     row['Error'] = response['error']
                     rows.append(row)
                     continue
 
-                content = response['content']
-                sections = ResultExporter.parse_sections(content)
-                for key, column in COLUMN_NAMES.items():
-                    raw_value = sections.get(key, '')
-                    cleaned_value = ResultExporter.clean_text(raw_value)
-                    row[column] = cleaned_value
+                sections = ResultExporter.parse_sections(response['content'])
+                for key, col_name in COLUMN_NAMES.items():
+                    row[col_name] = ResultExporter.clean_text(sections.get(key, ''))
                 rows.append(row)
 
-        columns = ['File Path', 'Process Time'] + list(COLUMN_NAMES.values())
-        df = pd.DataFrame(rows, columns=columns)
+        df = pd.DataFrame(rows, columns=['File Path', 'Process Time'] + list(COLUMN_NAMES.values()))
         df['Publication Date'] = df['Publication Date'].apply(ResultExporter.format_date)
 
+        # Create formatted workbook
         wb = Workbook()
         ws = wb.active
-        ws.title = 'Sheet1'
+        ws.title = 'Research Summary'
 
-        # Set the header font to bold
-        header_font = Font(name='Times New Roman', bold=True)
-        for cell in ws[1]:
-            cell.font = header_font
+        # Add headers
+        for col_num, col_name in enumerate(df.columns, 1):
+            cell = ws.cell(row=1, column=col_num, value=col_name)
+            cell.font = Font(name='Times New Roman', bold=True)
 
-        # Use dataframe_to_rows to write the DataFrame to the worksheet
-        for r_idx, row in enumerate(dataframe_to_rows(df, index=False, header=True), 1):
-            for c_idx, value in enumerate(row, 1):
+        # Add data with rich text formatting
+        for row_num, row_data in enumerate(dataframe_to_rows(df, index=False, header=False), 2):
+            for col_num, value in enumerate(row_data, 1):
                 if isinstance(value, str):
-                    rich_text = CellRichText()
-                    pos = 0
-                    bold_font = InlineFont(rFont='Times New Roman', b=True)
-                    normal_font = InlineFont(rFont='Times New Roman')
-
-                    while pos < len(value):
-                        # Handle the case of numbers followed by English words and a colon
-                        match = re.search(r'(\d+\.\s*[a-zA-Z\s]+:)', value[pos:])
-                        if match:
-                            start = match.start() + pos
-                            end = match.end() + pos
-                            if start > pos:
-                                rich_text.append(TextBlock(normal_font, value[pos:start]))
-                            rich_text.append(TextBlock(bold_font, match.group(1)))
-                            pos = end
-                        else:
-                            # Handle the specified BOLD_WORDS
-                            found = False
-                            for word in BOLD_WORDS:
-                                index = value.find(word, pos)
-                                if index != -1:
-                                    if index > pos:
-                                        rich_text.append(TextBlock(normal_font, value[pos:index]))
-                                    rich_text.append(TextBlock(bold_font, word))
-                                    pos = index + len(word)
-                                    found = True
-                                    break
-                            if not found:
-                                rich_text.append(TextBlock(normal_font, value[pos:]))
-                                break
-                    ws.cell(row=r_idx, column=c_idx, value=rich_text)
+                    ws.cell(row=row_num, column=col_num).value = ResultExporter.format_rich_text(value)
                 else:
-                    cell = ws.cell(row=r_idx, column=c_idx, value=value)
+                    cell = ws.cell(row=row_num, column=col_num, value=value)
                     cell.font = Font(name='Times New Roman')
 
+        # Apply styling
         for col in ws.columns:
             col_letter = get_column_letter(col[0].column)
             ws.column_dimensions[col_letter].width = 18
@@ -200,116 +162,167 @@ class ResultExporter:
             for cell in row:
                 cell.alignment = alignment
 
-        for idx, row in enumerate(ws.iter_rows(), start=1):
-            ws.row_dimensions[row[0].row].height = 30 if idx == 1 else 200
+        ws.row_dimensions[1].height = 30  # Header row
+        for row_num in range(2, ws.max_row + 1):
+            ws.row_dimensions[row_num].height = 200
 
-        wb.save(new_file_name)
-        print(f"Results saved to Excel file: {os.path.abspath(new_file_name)}")
-        return os.path.abspath(new_file_name)
+        wb.save(output_file)
+        print(f"📊 Saved results to: {os.path.abspath(output_file)}")
+        return os.path.abspath(output_file)
+
+    @staticmethod
+    def format_rich_text(text: str) -> CellRichText:
+        """Create rich text formatting for Excel cells"""
+        rich_text = CellRichText()
+        normal_font = InlineFont(rFont='Times New Roman')
+        bold_font = InlineFont(rFont='Times New Roman', b=True)
+
+        patterns = [
+            (r'(\d+\.\s*[a-zA-Z\s]+:)', bold_font),
+            (r'(Rating for Task \d+)', bold_font)
+        ]
+
+        pos = 0
+        while pos < len(text):
+            matched = False
+            for pattern, font in patterns:
+                match = re.search(pattern, text[pos:])
+                if match:
+                    start, end = match.span()
+                    if start > 0:
+                        rich_text.append(TextBlock(normal_font, text[pos:pos + start]))
+                    rich_text.append(TextBlock(font, match.group(1)))
+                    pos += end
+                    matched = True
+                    break
+            if not matched:
+                rich_text.append(TextBlock(normal_font, text[pos:]))
+                break
+
+        return rich_text
 
     @staticmethod
     def parse_sections(content: str) -> Dict[str, str]:
-        """
-        Parse the content into sections.
-        :param content: The content to be parsed.
-        :return: A dictionary containing the parsed sections.
-        """
+        """Parse API response into structured sections"""
         sections = {}
-        lines = content.split('\n')
-        current_section = None
-        current_value = []
+        current_key = None
+        buffer = []
 
-        for line in lines:
-            stripped = line.strip()
-            if not stripped:
+        for line in content.split('\n'):
+            line = line.strip()
+            if not line:
                 continue
 
-            match = re.match(r'^([A-Z])\.', stripped)
-            if match:
-                if current_section is not None:
-                    sections[current_section] = '\n'.join(current_value).strip()
-                current_section = match.group(1)
-                content_part = re.sub(r'^[A-Z]\.\s*', '', stripped)
-                current_value = [content_part]
+            key_match = re.match(r'^([A-Z])\.\s*(.+)', line)
+            if key_match:
+                if current_key:
+                    sections[current_key] = '\n'.join(buffer).strip()
+                current_key = key_match.group(1)
+                buffer = [key_match.group(2)]
             else:
-                if current_section is not None:
-                    current_value.append(stripped)
+                if current_key:
+                    buffer.append(line)
 
-        if current_section is not None:
-            sections[current_section] = '\n'.join(current_value).strip()
+        if current_key and buffer:
+            sections[current_key] = '\n'.join(buffer).strip()
 
-        valid_keys = set(COLUMN_NAMES.keys())
-        return {key: value for key, value in sections.items() if key in valid_keys}
+        return {k: v for k, v in sections.items() if k in COLUMN_NAMES}
 
     @staticmethod
     def clean_text(text: str) -> str:
-        """
-        Clean the text by removing markdown formatting and special characters.
-        :param text: The text to be cleaned.
-        :return: The cleaned text.
-        """
+        """Clean and normalize text content"""
         text = re.sub(r'###\s*', '', text)
-        text = re.sub(r'^\s*[-]', '', text, flags=re.MULTILINE)
+        text = re.sub(r'^\s*[-•]\s*', '', text, flags=re.MULTILINE)
         return re.sub(r'\s+', ' ', text).strip()
 
     @staticmethod
     def format_date(date_str):
-        """
-        Format the date string.
-        :param date_str: The date string to be formatted.
-        :return: The formatted date string.
-        """
-        if re.match(r'^\d{4}$', date_str):
+        """Enhanced date formatting with robust type handling"""
+        # Handle NaN and None values
+        if pd.isna(date_str) or date_str is None:
+            return ''
+
+        # Convert numeric types to string
+        if isinstance(date_str, (float, int)):
+            # Check for integer years like 2024.0
+            if isinstance(date_str, float) and date_str.is_integer():
+                return str(int(date_str))
+            return str(date_str)
+
+        # Ensure string type
+        if not isinstance(date_str, str):
+            date_str = str(date_str)
+
+        # Clean string values
+        date_str = date_str.strip()
+        if not date_str or date_str.lower() == 'nan':
+            return ''
+
+        # Date format validation
+        if re.fullmatch(r'\d{4}', date_str):  # Match exactly 4 digits
             return date_str
+
+        # Date parsing
         try:
-            date_obj = pd.to_datetime(date_str, errors='coerce')
-            return date_obj.strftime('%Y/%m/%d') if pd.notna(date_obj) else date_str
-        except:
-            return date_str
+            dt = pd.to_datetime(date_str, errors='coerce')
+            if pd.notna(dt):
+                return dt.strftime('%Y/%m/%d')
+        except Exception:
+            pass
+
+        return date_str  # Return original if all parsing fails
 
 
 def main():
-    CONFIG = {
-        "api_key": "xxx", # Replace with your actual API key
-        "pdf_folder": r"C:\Users\xinjiehuang\Desktop\research\trust\test", # Folder containing your PDF files
+    """Main processing workflow"""
+    config = {
+        "api_key": "",
+        "pdf_folder": r"C:\Users\xinjiehuang\Desktop\research\personality\test",
         "output_file": "research_summary.xlsx",
-        "user_prompt_path": r"C:\Users\xinjiehuang\Desktop\research\trust\prompts\user_prompt.txt" # Path to the user prompt file
+        "user_prompt_path": r"C:\Users\xinjiehuang\Desktop\research\trust\prompts\user_prompt.txt"
     }
 
     processor = PDFProcessor()
-    api_client = QwenAPI(CONFIG["api_key"], CONFIG["user_prompt_path"])
+    qwen_client = QwenAPI(config["api_key"], config["user_prompt_path"])
     results = []
 
-    for pdf_path in processor.process_folder(CONFIG["pdf_folder"]):
+    for pdf_path in processor.process_folder(config["pdf_folder"]):
         try:
-            print(f"Processing: {os.path.basename(pdf_path)}")
-            file_id = api_client.upload_document(pdf_path)
-            raw_responses = api_client.get_summary(file_id)
+            print(f"\n🔍 Processing: {os.path.basename(pdf_path)}")
 
-            # Create a folder to save TXT files
+            # Process with Qwen API
+            file_id = qwen_client.upload_document(pdf_path)
+            responses = qwen_client.get_summary(file_id)
+
+            # Save API response
             txt_folder = os.path.join(os.path.dirname(pdf_path), "qwen_answers")
             os.makedirs(txt_folder, exist_ok=True)
+            txt_path = os.path.join(
+                txt_folder,
+                f"{os.path.splitext(os.path.basename(pdf_path))[0]}.txt"
+            )
 
-            # Generate the TXT file name
-            pdf_filename = os.path.basename(pdf_path)
-            txt_filename = f"{os.path.splitext(pdf_filename)[0]}.txt"
-            txt_path = os.path.join(txt_folder, txt_filename)
-
-            # Save the model output to the TXT file
-            if raw_responses and 'content' in raw_responses[0]:
-                with open(txt_path, 'w', encoding='utf-8') as txt_file:
-                    txt_file.write(raw_responses[0]['content'])
+            if responses and 'content' in responses[0]:
+                with open(txt_path, 'w', encoding='utf-8') as f:
+                    f.write(responses[0]['content'])
 
             results.append({
-                "file_path": pdf_path,
-                "process_time": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "raw_responses": raw_responses
+                'file_path': pdf_path,
+                'process_time': datetime.now().strftime("%Y-%m-%d %H:%M"),
+                'raw_responses': responses
             })
-        except Exception as e:
-            print(f"Processing failed for {pdf_path}: {str(e)}")
 
-    output_path = ResultExporter.to_excel(results, CONFIG["output_file"])
-    print(f"Processing completed! Results saved to: {output_path}")
+        except Exception as e:
+            print(f"❌ Processing failed: {str(e)}")
+            results.append({
+                'file_path': pdf_path,
+                'process_time': datetime.now().strftime("%Y-%m-%d %H:%M"),
+                'raw_responses': [{'error': str(e)}]
+            })
+
+    # Generate final report
+    output_path = ResultExporter.to_excel(results, config["output_file"])
+    print(f"\n🎉 Processing complete! Results saved to:\n{output_path}")
 
 
 if __name__ == "__main__":
