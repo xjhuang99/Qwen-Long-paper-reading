@@ -11,9 +11,10 @@ from openpyxl import Workbook
 from openpyxl.cell.text import InlineFont
 from openpyxl.cell.rich_text import TextBlock, CellRichText
 from openpyxl.utils.dataframe import dataframe_to_rows
+import concurrent.futures
 
 # Configuration Constants
-MAX_INPUT_LENGTH_LONG = 10000000  # 10 million tokens
+MAX_INPUT_LENGTH_LONG = 10000000
 MAX_REPLY_LENGTH = 6000
 
 COLUMN_NAMES = {
@@ -31,11 +32,6 @@ COLUMN_NAMES = {
     'L': 'Red Flags',
     'M': 'Relevance to Research'
 }
-
-BOLD_WORDS = [
-    "Rating for Task 1",
-    "Rating for Task 2"
-]
 
 
 class PDFProcessor:
@@ -238,45 +234,97 @@ class ResultExporter:
     @staticmethod
     def format_date(date_str):
         """Enhanced date formatting with robust type handling"""
-        # Handle NaN and None values
         if pd.isna(date_str) or date_str is None:
             return ''
-
-        # Convert numeric types to string
         if isinstance(date_str, (float, int)):
-            # Check for integer years like 2024.0
             if isinstance(date_str, float) and date_str.is_integer():
                 return str(int(date_str))
             return str(date_str)
-
-        # Ensure string type
         if not isinstance(date_str, str):
             date_str = str(date_str)
 
-        # Clean string values
         date_str = date_str.strip()
         if not date_str or date_str.lower() == 'nan':
             return ''
-
-        # Date format validation
-        if re.fullmatch(r'\d{4}', date_str):  # Match exactly 4 digits
+        if re.fullmatch(r'\d{4}', date_str):
             return date_str
-
-        # Date parsing
         try:
             dt = pd.to_datetime(date_str, errors='coerce')
             if pd.notna(dt):
                 return dt.strftime('%Y/%m/%d')
         except Exception:
             pass
+        return date_str
 
-        return date_str  # Return original if all parsing fails
+
+def process_single_pdf(pdf_path, qwen_client):
+    original_filename = os.path.basename(pdf_path)
+    try:
+        print(f"🔍 Processing: {original_filename}")
+
+        # Check for existing TXT file
+        txt_folder = os.path.join(os.path.dirname(pdf_path), "qwen_answers")
+        os.makedirs(txt_folder, exist_ok=True)
+        txt_path = os.path.join(txt_folder, f"{os.path.splitext(original_filename)[0]}.txt")
+
+        if os.path.exists(txt_path):
+            print(f"📁 Using cached response for: {original_filename}")
+            with open(txt_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return {
+                'file_path': pdf_path,
+                'process_time': datetime.now().strftime("%Y-%m-%d %H:%M"),
+                'raw_responses': [{'content': content}]
+            }
+
+        # Process new file with API
+        file_id = qwen_client.upload_document(pdf_path)
+        responses = qwen_client.get_summary(file_id)
+
+        if not responses or 'error' in responses[0]:
+            raise RuntimeError(responses[0].get('error', 'Unknown API error'))
+
+        # Save API response
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            f.write(responses[0]['content'])
+
+        # Generate new filename from API response
+        sections = ResultExporter.parse_sections(responses[0]['content'])
+        publish_year = ResultExporter.format_date(sections.get('A', '')).split('/')[0] or 'unknown'
+        author_names = sections.get('B', '')
+        first_author = author_names.split(',')[0].strip() if author_names else ''
+        first_author_surname = first_author.split()[-1] if first_author else 'unknown'
+        article_title = (sections.get('D', '')[:175] or 'unknown').strip()
+
+        base_name = f"{publish_year}_{first_author_surname}_{article_title}.pdf"
+        safe_name = re.sub(r'[\\/*?:"<>|]', '', base_name)
+        if not safe_name:
+            safe_name = 'unknown.pdf'
+
+        new_pdf_path = os.path.join(os.path.dirname(pdf_path), safe_name)
+
+        os.rename(pdf_path, new_pdf_path)
+        print(f"✅ Renamed: {original_filename} -> {os.path.basename(new_pdf_path)}")
+
+        return {
+            'file_path': new_pdf_path,
+            'process_time': datetime.now().strftime("%Y-%m-%d %H:%M"),
+            'raw_responses': responses
+        }
+
+    except Exception as e:
+        print(f"❌ Processing failed for {original_filename}: {str(e)}")
+        return {
+            'file_path': pdf_path,
+            'process_time': datetime.now().strftime("%Y-%m-%d %H:%M"),
+            'raw_responses': [{'error': str(e)}]
+        }
 
 
 def main():
     """Main processing workflow"""
     config = {
-        "api_key": "",
+        "api_key": "xxx", # Your API key here
         "pdf_folder": r"C:\Users\xinjiehuang\Desktop\research\personality\test",
         "output_file": "research_summary.xlsx",
         "user_prompt_path": r"C:\Users\xinjiehuang\Desktop\research\trust\prompts\user_prompt.txt"
@@ -284,43 +332,12 @@ def main():
 
     processor = PDFProcessor()
     qwen_client = QwenAPI(config["api_key"], config["user_prompt_path"])
-    results = []
+    pdf_paths = processor.process_folder(config["pdf_folder"])
 
-    for pdf_path in processor.process_folder(config["pdf_folder"]):
-        try:
-            print(f"\n🔍 Processing: {os.path.basename(pdf_path)}")
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = {executor.submit(process_single_pdf, path, qwen_client): path for path in pdf_paths}
+        results = [future.result() for future in concurrent.futures.as_completed(futures)]
 
-            # Process with Qwen API
-            file_id = qwen_client.upload_document(pdf_path)
-            responses = qwen_client.get_summary(file_id)
-
-            # Save API response
-            txt_folder = os.path.join(os.path.dirname(pdf_path), "qwen_answers")
-            os.makedirs(txt_folder, exist_ok=True)
-            txt_path = os.path.join(
-                txt_folder,
-                f"{os.path.splitext(os.path.basename(pdf_path))[0]}.txt"
-            )
-
-            if responses and 'content' in responses[0]:
-                with open(txt_path, 'w', encoding='utf-8') as f:
-                    f.write(responses[0]['content'])
-
-            results.append({
-                'file_path': pdf_path,
-                'process_time': datetime.now().strftime("%Y-%m-%d %H:%M"),
-                'raw_responses': responses
-            })
-
-        except Exception as e:
-            print(f"❌ Processing failed: {str(e)}")
-            results.append({
-                'file_path': pdf_path,
-                'process_time': datetime.now().strftime("%Y-%m-%d %H:%M"),
-                'raw_responses': [{'error': str(e)}]
-            })
-
-    # Generate final report
     output_path = ResultExporter.to_excel(results, config["output_file"])
     print(f"\n🎉 Processing complete! Results saved to:\n{output_path}")
 
