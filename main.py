@@ -37,12 +37,13 @@ COLUMN_NAMES = {
 class PDFProcessor:
     @staticmethod
     def process_folder(folder_path: str) -> List[str]:
-        """Get all PDF files in folder"""
-        return [
-            os.path.join(folder_path, f)
-            for f in os.listdir(folder_path)
-            if f.lower().endswith('.pdf')
-        ]
+        """Recursively retrieve all PAF files in a folder and its subfolders"""
+        pdf_files = []
+        for dirpath, dirnames, filenames in os.walk(folder_path):
+            for filename in filenames:
+                if filename.lower().endswith('.pdf'):
+                    pdf_files.append(os.path.join(dirpath, filename))
+        return pdf_files
 
 
 class QwenAPI:
@@ -103,11 +104,8 @@ class QwenAPI:
 
 class ResultExporter:
     @staticmethod
-    def to_excel(data: List[Dict], output_path: str = "research_summary.xlsx") -> str:
+    def to_excel(data: List[Dict], output_file: str) -> str:  # Modified parameter
         """Export results to Excel with formatting"""
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        output_file = f"{os.path.splitext(output_path)[0]}_{timestamp}.xlsx"
-
         # Prepare dataframe
         rows = []
         for entry in data:
@@ -271,25 +269,21 @@ def process_single_pdf(pdf_path, qwen_client):
             print(f"📁 Using cached response for: {original_filename}")
             with open(txt_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-            return {
-                'file_path': pdf_path,
-                'process_time': datetime.now().strftime("%Y-%m-%d %H:%M"),
-                'raw_responses': [{'content': content}]
-            }
+        else:
+            # Process new file with API
+            file_id = qwen_client.upload_document(pdf_path)
+            responses = qwen_client.get_summary(file_id)
 
-        # Process new file with API
-        file_id = qwen_client.upload_document(pdf_path)
-        responses = qwen_client.get_summary(file_id)
+            if not responses or 'error' in responses[0]:
+                raise RuntimeError(responses[0].get('error', 'Unknown API error'))
 
-        if not responses or 'error' in responses[0]:
-            raise RuntimeError(responses[0].get('error', 'Unknown API error'))
-
-        # Save API response
-        with open(txt_path, 'w', encoding='utf-8') as f:
-            f.write(responses[0]['content'])
+            content = responses[0]['content']
+            # Save API response
+            with open(txt_path, 'w', encoding='utf-8') as f:
+                f.write(content)
 
         # Generate new filename from API response
-        sections = ResultExporter.parse_sections(responses[0]['content'])
+        sections = ResultExporter.parse_sections(content)
         publish_year = ResultExporter.format_date(sections.get('A', '')).split('/')[0] or 'unknown'
         author_names = sections.get('B', '')
         first_author = author_names.split(',')[0].strip() if author_names else ''
@@ -306,10 +300,15 @@ def process_single_pdf(pdf_path, qwen_client):
         os.rename(pdf_path, new_pdf_path)
         print(f"✅ Renamed: {original_filename} -> {os.path.basename(new_pdf_path)}")
 
+        # Update the txt file name to match the new PDF name
+        new_txt_name = f"{os.path.splitext(safe_name)[0]}.txt"
+        new_txt_path = os.path.join(txt_folder, new_txt_name)
+        os.rename(txt_path, new_txt_path)
+
         return {
             'file_path': new_pdf_path,
             'process_time': datetime.now().strftime("%Y-%m-%d %H:%M"),
-            'raw_responses': responses
+            'raw_responses': [{'content': content}]
         }
 
     except Exception as e:
@@ -320,25 +319,30 @@ def process_single_pdf(pdf_path, qwen_client):
             'raw_responses': [{'error': str(e)}]
         }
 
-
 def main():
     """Main processing workflow"""
     config = {
-        "api_key": "xxx", # Your API key here
-        "pdf_folder": r"C:\Users\xinjiehuang\Desktop\research\personality\test",
-        "output_file": "research_summary.xlsx",
-        "user_prompt_path": r"C:\Users\xinjiehuang\Desktop\research\trust\prompts\user_prompt.txt"
+        "api_key": "xxx",
+        "pdf_folder": r"D:\Downloads\PDF\test",
+        "user_prompt_path": r"D:\Downloads\PDF\user_prompt.txt",
+        "max_workers": 10  # Add parallel processing limit
     }
 
     processor = PDFProcessor()
     qwen_client = QwenAPI(config["api_key"], config["user_prompt_path"])
     pdf_paths = processor.process_folder(config["pdf_folder"])
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    # Generate output filename
+    folder_name = os.path.basename(config["pdf_folder"])
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    output_filename = f"research_summary_{folder_name}_{timestamp}.xlsx"
+    output_path = os.path.join(config["pdf_folder"], output_filename)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=config["max_workers"]) as executor:
         futures = {executor.submit(process_single_pdf, path, qwen_client): path for path in pdf_paths}
         results = [future.result() for future in concurrent.futures.as_completed(futures)]
 
-    output_path = ResultExporter.to_excel(results, config["output_file"])
+    ResultExporter.to_excel(results, output_path)
     print(f"\n🎉 Processing complete! Results saved to:\n{output_path}")
 
 
